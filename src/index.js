@@ -9,7 +9,9 @@ import Notification from './models/Notification.js'
 import Patient from './models/Patient.js'
 import Prescription from './models/Prescription.js'
 import Referral from './models/Referral.js'
+import ReferralAudit from './models/ReferralAudit.js'
 import { migrateLegacyClinicalRecords } from './services/dataMigration.service.js'
+import { removeReferralExpiryTtlIndexes } from './services/referralIndex.service.js'
 import { startRiskAssessmentWorker } from './services/aiRiskQueue.service.js'
 
 async function startServer() {
@@ -21,6 +23,10 @@ async function startServer() {
 
     startupStage = 'MongoDB connection'
     await connectDatabase()
+    startupStage = 'Referral index initialization'
+    await Referral.init()
+    startupStage = 'Referral history index migration'
+    await removeReferralExpiryTtlIndexes()
     startupStage = 'clinical metadata migration'
     await migrateLegacyClinicalRecords()
     const models = [
@@ -31,7 +37,7 @@ async function startServer() {
       ['DoctorConsultation', DoctorConsultation],
       ['Notification', Notification],
       ['Prescription', Prescription],
-      ['Referral', Referral],
+      ['ReferralAudit', ReferralAudit],
     ]
     for (const [modelName, model] of models) {
       startupStage = `index initialization for ${modelName}`

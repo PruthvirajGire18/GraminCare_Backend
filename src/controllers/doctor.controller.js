@@ -6,6 +6,7 @@ import {
   getDoctorDashboard,
   listDoctorAssessments,
   listDoctorCases,
+  revokeDoctorPatientReferral,
   takeDoctorCase,
 } from '../services/doctor.service.js'
 
@@ -51,4 +52,9 @@ export async function postPrescription(request, response) {
 export async function postReferral(request, response) {
   const result = await createDoctorReferral(request.params.patientId, doctorId(request), request.body)
   response.status(201).json({ success: true, ...result })
+}
+
+export async function revokeReferral(request, response) {
+  const result = await revokeDoctorPatientReferral(request.params.patientId, request.params.referralId, doctorId(request))
+  response.status(200).json({ success: true, referral: result })
 }

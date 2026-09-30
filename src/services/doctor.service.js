@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from 'node:crypto'
 import mongoose from 'mongoose'
 import ASHAVisit from '../models/ASHAVisit.js'
 import DoctorConsultation from '../models/DoctorConsultation.js'
@@ -8,10 +7,10 @@ import Referral from '../models/Referral.js'
 import ApiError from '../utils/ApiError.js'
 import { listNotifications, notifyFollowUpScheduled } from './notification.service.js'
 import { markMissedFollowUps } from './followUp.service.js'
+import { expireReferralRecords, issueReferral, revokeDoctorReferral } from './referral.service.js'
 
 const CASE_RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 const CONSULTATION_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
-const REFERRAL_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const CASE_PATIENT_FIELDS = 'fullName gender dateOfBirth phone address status createdAt createdBy ashaWorkers caseStatus assignedDoctor assignedAt'
 const VISIT_CASE_FIELDS = 'patient visitDate visitType symptoms medicalHistory allergies currentMedicines vitals observations followUp +aiAssessment'
 
@@ -236,6 +235,7 @@ export async function getDoctorCase(patientId, doctorId) {
     leanQuery(sortQuery(populateQuery(Prescription.find({ patient: patientObjectId }), { path: 'doctor', select: 'name' }), { createdAt: -1 })),
     leanQuery(sortQuery(populateQuery(Referral.find({ patient: patientObjectId }), { path: 'doctor', select: 'name' }), { createdAt: -1 })),
   ])
+  await expireReferralRecords(referrals)
   const mostRecentWith = (field) => visits.find((visit) => Array.isArray(visit[field]) && visit[field].length)?.[field] || []
   const timeline = [
     ...visits.map((visit) => ({ id: visit._id, type: 'ASHA_VISIT', date: visit.visitDate, title: visit.visitType === 'FOLLOW_UP' ? 'ASHA follow-up visit' : 'ASHA visit', summary: visit.symptoms?.chiefComplaint || 'Visit recorded' })),
@@ -244,7 +244,7 @@ export async function getDoctorCase(patientId, doctorId) {
       ...(consultation.followUpDate ? [{ id: `follow-up-${consultation._id}`, type: 'FOLLOW_UP_SCHEDULED', date: consultation.followUpDate, title: 'Follow-up scheduled', summary: `Status: ${consultation.followUpStatus || 'PENDING'}`, status: consultation.followUpStatus || 'PENDING' }] : []),
     ]),
     ...prescriptions.map((prescription) => ({ id: prescription._id, type: 'PRESCRIPTION', date: prescription.createdAt, title: 'Prescription added', summary: prescription.items?.map((item) => item.medicine).join(', ') || 'Prescription' })),
-    ...referrals.map((referral) => ({ id: referral._id, type: 'REFERRAL', date: referral.createdAt, title: 'Patient referred', summary: referral.reason, status: referral.status })),
+    ...referrals.map((referral) => ({ id: referral._id, type: 'REFERRAL', date: referral.createdAt, title: 'Patient referred', summary: `${referral.priority} · ${referral.reason}`, status: referral.status })),
   ].sort((left, right) => new Date(right.date) - new Date(left.date))
 
   return {
@@ -337,25 +337,25 @@ export async function createDoctorPrescription(patientId, doctorId, input = {}) 
 export async function createDoctorReferral(patientId, doctorId, input = {}) {
   const patient = await requireAssignedDoctor(patientId, doctorId)
   if (!isObjectId(input.consultationId)) throw new ApiError(400, 'A valid consultation id is required')
-  const consultation = await DoctorConsultation.findOne({ _id: input.consultationId, patient: patient._id, doctor: doctorId }).select('_id')
+  const consultation = await DoctorConsultation.findOne({ _id: input.consultationId, patient: patient._id, doctor: doctorId }).select('_id priority')
   if (!consultation) throw new ApiError(404, 'Consultation not found for this doctor and patient')
   const reason = textField(input.reason, 'Referral reason', 2000, { required: true })
-  const token = randomBytes(32).toString('base64url')
-  const tokenHash = createHash('sha256').update(token).digest('hex')
-  const expiresAt = new Date(Date.now() + REFERRAL_TOKEN_TTL_MS)
-  const referral = await Referral.create({
-    patient: patient._id,
-    consultation: consultation._id,
-    doctor: doctorId,
-    ashaWorker: patient.createdBy,
-    reason,
-    tokenHash,
-    expiresAt,
-  })
-  return {
-    referral: { id: referral._id, status: referral.status, reason: referral.reason, expiresAt: referral.expiresAt },
-    token,
+  const priority = input.priority || (consultation.priority === 'CRITICAL' ? 'CRITICAL' : 'HIGH')
+  if (!['HIGH', 'CRITICAL'].includes(priority)) throw new ApiError(400, 'Referral priority must be HIGH or CRITICAL')
+  const destinationInput = input.destination ?? {}
+  if (!destinationInput || typeof destinationInput !== 'object' || Array.isArray(destinationInput)) {
+    throw new ApiError(400, 'Referral destination must be an object')
   }
+  const destination = {
+    facilityName: textField(destinationInput.facilityName, 'Destination name', 160),
+    address: textField(destinationInput.address, 'Destination address', 300),
+  }
+  return issueReferral({ patient, consultation, doctorId, reason, priority, destination })
+}
+
+export async function revokeDoctorPatientReferral(patientId, referralId, doctorId) {
+  const patient = await requireAssignedDoctor(patientId, doctorId)
+  return revokeDoctorReferral({ patientId: patient._id, referralId, doctorId })
 }
 
 export function doctorAssessmentDto(visit) {

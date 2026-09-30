@@ -12,6 +12,7 @@ import apiRouter from './routes/index.js'
 import authRouter from './routes/auth.routes.js'
 import conflictRouter from './routes/conflict.routes.js'
 import doctorRouter from './routes/doctor.routes.js'
+import referralRouter from './routes/referral.routes.js'
 
 const app = express()
 
@@ -30,6 +31,7 @@ app.use('/api/auth', authRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/asha', ashaRouter)
 app.use('/api/conflicts', conflictRouter)
+app.use('/api/referrals', referralRouter)
 app.use('/api/doctor', doctorRouter)
 app.use('/api', apiRouter)
 app.use(notFound)

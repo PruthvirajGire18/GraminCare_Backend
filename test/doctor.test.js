@@ -5,7 +5,9 @@ import DoctorConsultation from '../src/models/DoctorConsultation.js'
 import Patient from '../src/models/Patient.js'
 import Prescription from '../src/models/Prescription.js'
 import Referral from '../src/models/Referral.js'
+import ReferralAudit from '../src/models/ReferralAudit.js'
 import Notification from '../src/models/Notification.js'
+import { env } from '../src/config/env.js'
 import doctorRouter from '../src/routes/doctor.routes.js'
 import { requireAuth } from '../src/middleware/auth.middleware.js'
 import { requireRole } from '../src/middleware/role.middleware.js'
@@ -143,7 +145,7 @@ test('case details include demographics, clinical records, AI assessment, and a 
     { _id: 'prescription-1', patient: PATIENT_ID, items: [{ medicine: 'Example medicine', dosage: '500 mg', frequency: 'Twice daily', duration: '3 days', instructions: 'After food' }, { medicine: 'Second medicine', dosage: '1 tablet', frequency: 'Daily', duration: '5 days' }], createdAt: new Date('2026-09-12') },
     { _id: 'prescription-2', patient: PATIENT_ID, items: [{ medicine: 'Historical medicine', dosage: '250 mg', frequency: 'Daily', duration: '2 days' }], createdAt: new Date('2026-09-14') },
   ])
-  Referral.find = () => query([{ _id: 'referral-1', patient: PATIENT_ID, status: 'ACTIVE', reason: 'Further evaluation', createdAt: new Date('2026-09-13'), expiresAt: new Date('2026-09-20') }])
+  Referral.find = () => query([{ _id: 'referral-1', patient: PATIENT_ID, status: 'ACTIVE', reason: 'Further evaluation', createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }])
   try {
     const result = await getDoctorCase(PATIENT_ID, DOCTOR_A)
     assert.equal(result.patient.fullName, 'Example Patient')
@@ -232,20 +234,26 @@ test('doctor clinical writes require case ownership and keep consultation and pr
   }
 })
 
-test('doctor referral stores a token hash and returns the raw token only at creation', async () => {
-  const restore = saveStatics({ findOne: Patient, consultationFindOne: DoctorConsultation, referralCreate: Referral })
+test('doctor referral stores a hashed token and never returns the bearer token', async () => {
+  const restore = saveStatics({ findOne: Patient, consultationFindOne: DoctorConsultation, referralCreate: Referral, auditCreate: ReferralAudit, notificationBulkWrite: Notification })
+  const previousJwtSecret = env.jwtSecret
+  env.jwtSecret = 'test-only-referral-encryption-secret-with-32-bytes'
   Patient.findOne = () => query(makePatient({ assignedDoctor: { _id: DOCTOR_A, name: 'Doctor A' }, caseStatus: 'ACTIVE' }))
   DoctorConsultation.findOne = () => query({ _id: CONSULTATION_ID })
   let savedReferral
-  Referral.create = async (document) => { savedReferral = document; return { _id: 'referral-1', status: 'ACTIVE', reason: document.reason, expiresAt: document.expiresAt } }
+  Referral.create = async (document) => { savedReferral = document; return { _id: 'referral-1', status: 'ACTIVE', createdAt: new Date(), ...document } }
+  ReferralAudit.create = async (document) => document
+  Notification.bulkWrite = async () => ({})
   try {
     const result = await createDoctorReferral(PATIENT_ID, DOCTOR_A, { consultationId: CONSULTATION_ID, reason: 'Needs further evaluation' })
-    assert.ok(result.token.length > 30)
-    assert.notEqual(savedReferral.tokenHash, result.token)
+    assert.equal(result.token, undefined)
+    assert.match(savedReferral.tokenHash, /^[a-f\d]{64}$/)
+    assert.ok(savedReferral.tokenCiphertext)
     assert.equal(result.referral.reason, 'Needs further evaluation')
     assert.equal(savedReferral.ashaWorker, '507f191e810c19729de860ec')
   } finally {
     restore()
+    env.jwtSecret = previousJwtSecret
   }
 })
 

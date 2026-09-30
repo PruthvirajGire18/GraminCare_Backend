@@ -3,11 +3,11 @@ import mongoose from 'mongoose'
 import ASHAVisit from '../models/ASHAVisit.js'
 import DoctorConsultation from '../models/DoctorConsultation.js'
 import Patient from '../models/Patient.js'
-import Referral from '../models/Referral.js'
 import User from '../models/User.js'
 import ApiError from '../utils/ApiError.js'
 import { listNotifications, notifyFollowUpCompleted } from './notification.service.js'
 import { markMissedFollowUps } from './followUp.service.js'
+import { listAshaReferralSummaries } from './referral.service.js'
 
 const PATIENT_GENDERS = ['FEMALE', 'MALE', 'OTHER', 'UNKNOWN']
 const VISIT_TYPES = ['INITIAL', 'FOLLOW_UP']
@@ -360,11 +360,10 @@ export async function getDashboardSummary(ashaWorkerId) {
   startOfToday.setHours(0, 0, 0, 0)
   const startOfTomorrow = new Date(startOfToday)
   startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
-  const now = new Date()
   const patients = await Patient.find({ $or: [{ createdBy: ashaWorkerId }, { ashaWorkers: ashaWorkerId }], status: 'ACTIVE' }).select('_id').lean()
   const patientIds = patients.map((patient) => patient._id)
   await markMissedFollowUps(patientIds)
-  const [todaysVisits, scheduledVisitFollowUps, consultations, referrals, notifications] = await Promise.all([
+  const [todaysVisits, scheduledVisitFollowUps, consultations, referralItems, notifications] = await Promise.all([
     ASHAVisit.countDocuments({ patient: { $in: patientIds }, visitDate: { $gte: startOfToday, $lt: startOfTomorrow } }),
     ASHAVisit.find({ patient: { $in: patientIds }, 'followUp.status': 'SCHEDULED', 'followUp.date': { $ne: null, $lte: startOfTomorrow } }).select('patient followUp').populate({ path: 'patient', select: 'fullName' }).lean(),
     DoctorConsultation.find({ patient: { $in: patientIds }, followUpStatus: { $in: ['PENDING', 'MISSED'] }, followUpDate: { $ne: null } })
@@ -373,7 +372,7 @@ export async function getDashboardSummary(ashaWorkerId) {
       .sort({ followUpDate: 1 })
       .limit(100)
       .lean(),
-    Referral.countDocuments({ ashaWorker: ashaWorkerId, status: 'ACTIVE', expiresAt: { $gt: now } }),
+    listAshaReferralSummaries(patientIds),
     listNotifications(ashaWorkerId, 20),
   ])
   const doctorFollowUps = consultations.filter((consultation) => consultation.patient).map((consultation) => ({
@@ -402,6 +401,7 @@ export async function getDashboardSummary(ashaWorkerId) {
     doctorFollowUps,
     followUpVisits,
     notifications,
-    referrals,
+    referrals: referralItems.length,
+    referralItems,
   }
 }

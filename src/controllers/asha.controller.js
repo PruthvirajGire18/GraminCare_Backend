@@ -11,6 +11,7 @@ import {
 } from '../services/asha.service.js'
 import { applyVersionedChanges } from '../services/conflict.service.js'
 import { enqueueRiskAssessment } from '../services/aiRiskQueue.service.js'
+import { getAshaReferralQr } from '../services/referral.service.js'
 
 function workerId(request) {
   return request.user._id.toString()
@@ -19,6 +20,11 @@ function workerId(request) {
 export async function getDashboard(request, response) {
   const summary = await getDashboardSummary(workerId(request))
   response.status(200).json({ success: true, summary })
+}
+
+export async function getReferralQr(request, response) {
+  const result = await getAshaReferralQr(request.params.referralId, workerId(request))
+  response.status(200).json({ success: true, ...result })
 }
 
 export async function getPatients(request, response) {

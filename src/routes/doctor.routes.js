@@ -7,6 +7,7 @@ import {
   postConsultation,
   postPrescription,
   postReferral,
+  revokeReferral,
   takeCase,
 } from '../controllers/doctor.controller.js'
 import { requireAuth } from '../middleware/auth.middleware.js'
@@ -21,6 +22,7 @@ doctorRouter.post('/cases/:patientId/take', takeCase)
 doctorRouter.post('/cases/:patientId/consultations', postConsultation)
 doctorRouter.post('/cases/:patientId/prescriptions', postPrescription)
 doctorRouter.post('/cases/:patientId/referrals', postReferral)
+doctorRouter.post('/cases/:patientId/referrals/:referralId/revoke', revokeReferral)
 doctorRouter.get('/assessments', getAssessments)
 
 export default doctorRouter

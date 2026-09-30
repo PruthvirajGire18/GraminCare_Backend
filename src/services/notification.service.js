@@ -26,7 +26,7 @@ async function saveNotifications(records) {
     })), { ordered: false })
   } catch (error) {
     // A reminder must never undo a saved consultation or visit.
-    console.error(`Follow-up notification persistence failed: ${error.name}${error.code ? ` (${error.code})` : ''}`)
+    console.error(`Notification persistence failed: ${error.name}${error.code ? ` (${error.code})` : ''}`)
   }
 }
 
@@ -126,6 +126,34 @@ export async function notifyFollowUpCompleted(consultation, patient, visit) {
     dueDate: consultation.followUpDate,
   })
   await saveNotifications([record])
+}
+
+export async function notifyReferralGenerated(referral, patient) {
+  const patientCode = shortPatientId(patient)
+  const records = ashaRecipients(patient).map((recipient) => ({
+    recipient,
+    recipientRole: 'ASHA_WORKER',
+    type: 'REFERRAL_GENERATED',
+    title: 'Referral Generated',
+    message: `Patient ${patientCode} · ${referral.priority} priority`,
+    patient: patient._id,
+    consultation: null,
+    referral: referral._id,
+    dueDate: null,
+    dedupeKey: `REFERRAL_GENERATED:${referral._id}:${recipient}`,
+  }))
+  await saveNotifications(records)
+}
+
+export async function resolveReferralNotifications(referralId) {
+  try {
+    await Notification.updateMany(
+      { referral: referralId, resolvedAt: null },
+      { $set: { resolvedAt: new Date() } },
+    )
+  } catch (error) {
+    console.error(`Referral notification resolution failed: ${error.name}${error.code ? ` (${error.code})` : ''}`)
+  }
 }
 
 export async function listNotifications(recipientId, limit = 10) {

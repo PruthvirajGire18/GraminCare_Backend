@@ -259,6 +259,7 @@ test('doctor router keeps assessment reads and clinical writes behind the doctor
     { path: '/cases/:patientId/consultations', methods: ['post'] },
     { path: '/cases/:patientId/prescriptions', methods: ['post'] },
     { path: '/cases/:patientId/referrals', methods: ['post'] },
+    { path: '/cases/:patientId/referrals/:referralId/revoke', methods: ['post'] },
     { path: '/assessments', methods: ['get'] },
   ])
 })

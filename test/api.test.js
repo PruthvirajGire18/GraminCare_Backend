@@ -47,6 +47,18 @@ test('mounted auth and health routes enforce unauthenticated access rules', asyn
     const takeCaseResponse = await fetch(`${baseUrl}/api/doctor/cases/507f1f77bcf86cd799439011/take`, { method: 'POST' })
     assert.equal(takeCaseResponse.status, 401)
 
+    const publicReferralVerification = await fetch(`${baseUrl}/api/referrals/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'invalid-token' }),
+    })
+    assert.equal(publicReferralVerification.status, 404)
+    assert.deepEqual(await publicReferralVerification.json(), {
+      success: false,
+      message: 'Referral invalid or expired.',
+      code: 'REFERRAL_INVALID',
+    })
+
     const publicAdminRegistration = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { Origin: 'http://localhost:5174', 'Content-Type': 'application/json' },

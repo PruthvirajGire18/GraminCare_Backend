@@ -4,6 +4,7 @@ import {
   getDashboard,
   getPatient,
   getPatients,
+  getReferralQr,
   getVisit,
   getVisits,
   patchPatient,
@@ -18,6 +19,7 @@ import { requireRole } from '../middleware/role.middleware.js'
 const ashaRouter = Router()
 ashaRouter.use(requireAuth, requireRole('ASHA_WORKER'))
 ashaRouter.get('/dashboard', getDashboard)
+ashaRouter.get('/referrals/:referralId/qr', getReferralQr)
 ashaRouter.get('/patients', getPatients)
 ashaRouter.post('/patients', postPatient)
 ashaRouter.post('/patients/:patientId/share', sharePatient)
