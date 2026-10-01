@@ -13,9 +13,29 @@ import { applyVersionedChanges } from '../services/conflict.service.js'
 import { enqueueRiskAssessment } from '../services/aiRiskQueue.service.js'
 import { getAshaReferralQr } from '../services/referral.service.js'
 import { writeSecurityAuditEvent } from '../services/securityAudit.service.js'
+import { reportSyncQueue } from '../services/syncReport.service.js'
 
 function workerId(request) {
   return request.user._id.toString()
+}
+
+async function runSyncOperation(request, resourceType, operation) {
+  try {
+    return await operation()
+  } catch (error) {
+    await writeSecurityAuditEvent({
+      actor: request.user._id,
+      actorRole: request.user.role,
+      action: 'SYNC_FAILED',
+      resourceType,
+    })
+    throw error
+  }
+}
+
+export async function putSyncReport(request, response) {
+  const result = await reportSyncQueue(request.user._id, request.body)
+  response.status(200).json({ success: true, ...result })
 }
 
 export async function getDashboard(request, response) {
@@ -34,7 +54,7 @@ export async function getPatients(request, response) {
 }
 
 export async function postPatient(request, response) {
-  const result = await createPatient(request.body, workerId(request))
+  const result = await runSyncOperation(request, 'PATIENT', () => createPatient(request.body, workerId(request)))
   if (result.created) {
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'PATIENT_CREATED', resourceType: 'PATIENT', resourceId: result.patient._id })
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'SYNC_COMPLETED', resourceType: 'PATIENT', resourceId: result.patient._id })
@@ -48,15 +68,15 @@ export async function getPatient(request, response) {
 }
 
 export async function patchPatient(request, response) {
-  const result = await applyVersionedChanges({
-    recordType: 'PATIENT',
-    recordId: request.params.patientId,
-    changes: request.body?.changes,
-    baseValues: request.body?.baseValues,
-    baseVersion: request.body?.baseVersion,
-    clientOperationId: request.body?.clientOperationId,
-    userId: workerId(request),
-  })
+  const result = await runSyncOperation(request, 'PATIENT', () => applyVersionedChanges({
+      recordType: 'PATIENT',
+      recordId: request.params.patientId,
+      changes: request.body?.changes,
+      baseValues: request.body?.baseValues,
+      baseVersion: request.body?.baseVersion,
+      clientOperationId: request.body?.clientOperationId,
+      userId: workerId(request),
+    }))
   if (result.mergedFields.length) {
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'PATIENT_UPDATED', resourceType: 'PATIENT', resourceId: result.record._id })
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'SYNC_COMPLETED', resourceType: 'PATIENT', resourceId: result.record._id })
@@ -77,16 +97,19 @@ export async function sharePatient(request, response) {
 }
 
 export async function deletePatient(request, response) {
-  const patient = await archivePatient(request.params.patientId, request.body, workerId(request))
-  await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'PATIENT_ARCHIVED', resourceType: 'PATIENT', resourceId: patient._id })
-  await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'SYNC_COMPLETED', resourceType: 'PATIENT', resourceId: patient._id })
+  const result = await runSyncOperation(request, 'PATIENT', () => archivePatient(request.params.patientId, request.body, workerId(request)))
+  const { patient } = result
+  if (!result.duplicate) {
+    await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'PATIENT_ARCHIVED', resourceType: 'PATIENT', resourceId: patient._id })
+    await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'SYNC_COMPLETED', resourceType: 'PATIENT', resourceId: patient._id })
+  }
   response.status(200).json({ success: true, patient, message: 'Patient archived' })
 }
 
 export async function postVisit(request, response, dependencies = {}) {
   const create = dependencies.createVisitFn || createVisit
   const enqueue = dependencies.enqueueAssessmentFn || enqueueRiskAssessment
-  const result = await create(request.params.patientId, request.body, workerId(request))
+  const result = await runSyncOperation(request, 'ASHA_VISIT', () => create(request.params.patientId, request.body, workerId(request)))
   if (result.created) {
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'VISIT_CREATED', resourceType: 'ASHA_VISIT', resourceId: result.visit._id })
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'SYNC_COMPLETED', resourceType: 'ASHA_VISIT', resourceId: result.visit._id })
@@ -96,16 +119,16 @@ export async function postVisit(request, response, dependencies = {}) {
 }
 
 export async function patchVisit(request, response) {
-  const result = await applyVersionedChanges({
-    recordType: 'ASHA_VISIT',
-    recordId: request.params.visitId,
-    patientId: request.params.patientId,
-    changes: request.body?.changes,
-    baseValues: request.body?.baseValues,
-    baseVersion: request.body?.baseVersion,
-    clientOperationId: request.body?.clientOperationId,
-    userId: workerId(request),
-  })
+  const result = await runSyncOperation(request, 'ASHA_VISIT', () => applyVersionedChanges({
+      recordType: 'ASHA_VISIT',
+      recordId: request.params.visitId,
+      patientId: request.params.patientId,
+      changes: request.body?.changes,
+      baseValues: request.body?.baseValues,
+      baseVersion: request.body?.baseVersion,
+      clientOperationId: request.body?.clientOperationId,
+      userId: workerId(request),
+    }))
   if (result.mergedFields.length) enqueueRiskAssessment(result.record._id)
   if (result.mergedFields.length) {
     await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'VISIT_UPDATED', resourceType: 'ASHA_VISIT', resourceId: result.record._id })

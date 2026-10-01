@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   getAssessments,
   getCase,
+  getCaseByReferralQr,
   getCases,
   getDashboard,
   postConsultation,
@@ -17,6 +18,7 @@ const doctorRouter = Router()
 doctorRouter.use(requireAuth, requireRole('DOCTOR'))
 doctorRouter.get('/dashboard', getDashboard)
 doctorRouter.get('/cases', getCases)
+doctorRouter.post('/referrals/lookup', getCaseByReferralQr)
 doctorRouter.get('/cases/:patientId', getCase)
 doctorRouter.post('/cases/:patientId/take', takeCase)
 doctorRouter.post('/cases/:patientId/consultations', postConsultation)

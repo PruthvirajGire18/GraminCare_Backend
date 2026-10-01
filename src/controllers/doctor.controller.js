@@ -3,6 +3,7 @@ import {
   createDoctorPrescription,
   createDoctorReferral,
   getDoctorCase,
+  getDoctorCaseByReferralToken,
   getDoctorDashboard,
   listDoctorAssessments,
   listDoctorCases,
@@ -32,6 +33,18 @@ export async function getCases(request, response) {
 
 export async function getCase(request, response) {
   const patientCase = await getDoctorCase(request.params.patientId, doctorId(request))
+  response.status(200).json({ success: true, ...patientCase })
+}
+
+export async function getCaseByReferralQr(request, response) {
+  const patientCase = await getDoctorCaseByReferralToken(request.body?.token, doctorId(request))
+  await writeSecurityAuditEvent({
+    actor: request.user._id,
+    actorRole: request.user.role,
+    action: 'PATIENT_RECORD_ACCESSED_BY_QR',
+    resourceType: 'PATIENT',
+    resourceId: patientCase.patient.id,
+  })
   response.status(200).json({ success: true, ...patientCase })
 }
 

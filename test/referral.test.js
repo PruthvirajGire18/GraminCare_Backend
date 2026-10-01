@@ -99,7 +99,7 @@ function setupMocks({ status = 'ACTIVE', expiresAt = new Date(Date.now() + 60_00
   }
 }
 
-test('QR generation returns a random token only in the verification URL fragment', async () => {
+test('QR generation returns a random token only in the doctor dashboard URL fragment', async () => {
   const mocks = setupMocks()
   try {
     const issued = await issueReferral({
@@ -120,7 +120,7 @@ test('QR generation returns a random token only in the verification URL fragment
     const token = qr.verificationUrl.split('#')[1]
     assert.match(token, /^REF-[a-f\d]{64}$/)
     assert.equal(createHash('sha256').update(token).digest('hex'), mocks.record.tokenHash)
-    assert.equal(qr.verificationUrl.split('#')[0], '/referral/verify')
+    assert.equal(qr.verificationUrl.split('#')[0], '/doctor')
     const resolvedQrLink = new URL(qr.verificationUrl, 'http://localhost:5174')
     assert.equal(resolvedQrLink.origin, 'http://localhost:5174')
     assert.equal(resolvedQrLink.search, '')

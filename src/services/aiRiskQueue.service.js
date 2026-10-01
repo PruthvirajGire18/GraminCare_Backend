@@ -51,7 +51,7 @@ export async function processRiskAssessment(visitId, {
       $set: { 'aiAssessment.status': 'AI_ASSESSMENT_PROCESSING', 'aiAssessment.lastErrorCode': null },
       $inc: { 'aiAssessment.attempts': 1 },
     },
-    { new: true },
+    { returnDocument: 'after' },
   )
   claimQuery = withAssessment(claimQuery)
   const visit = await claimQuery

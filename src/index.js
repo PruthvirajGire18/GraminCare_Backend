@@ -11,6 +11,7 @@ import Prescription from './models/Prescription.js'
 import Referral from './models/Referral.js'
 import ReferralAudit from './models/ReferralAudit.js'
 import SecurityAuditEvent from './models/SecurityAuditEvent.js'
+import SyncDeviceReport from './models/SyncDeviceReport.js'
 import { migrateLegacyClinicalRecords } from './services/dataMigration.service.js'
 import { removeReferralExpiryTtlIndexes } from './services/referralIndex.service.js'
 import { startRiskAssessmentWorker } from './services/aiRiskQueue.service.js'
@@ -40,6 +41,7 @@ async function startServer() {
       ['Prescription', Prescription],
       ['ReferralAudit', ReferralAudit],
       ['SecurityAuditEvent', SecurityAuditEvent],
+      ['SyncDeviceReport', SyncDeviceReport],
     ]
     for (const [modelName, model] of models) {
       startupStage = `index initialization for ${modelName}`

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import User, { USER_STATUSES } from '../models/User.js'
+import User, { USER_ROLES, USER_STATUSES } from '../models/User.js'
 import ApiError from '../utils/ApiError.js'
 import { toUserDto } from '../utils/userDto.js'
 
@@ -18,8 +18,28 @@ async function findManagedUser(userId) {
   return user
 }
 
-export async function listUsers() {
-  const users = await User.find().sort({ createdAt: -1 })
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export async function listUsers(filters = {}) {
+  const query = {}
+  if (filters.role) {
+    if (!USER_ROLES.includes(filters.role)) throw new ApiError(400, 'Role filter is invalid')
+    query.role = filters.role
+  }
+  if (filters.status) {
+    if (!USER_STATUSES.includes(filters.status)) throw new ApiError(400, 'Status filter is invalid')
+    query.status = filters.status
+  }
+
+  const search = typeof filters.search === 'string' ? filters.search.trim().slice(0, 100) : ''
+  if (search) {
+    const matcher = new RegExp(escapeRegex(search), 'i')
+    query.$or = [{ name: matcher }, { email: matcher }]
+  }
+
+  const users = await User.find(query).sort({ createdAt: -1 })
   return users.map(toUserDto)
 }
 

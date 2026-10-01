@@ -12,12 +12,14 @@ import {
   postPatient,
   postVisit,
   sharePatient,
+  putSyncReport,
 } from '../controllers/asha.controller.js'
 import { requireAuth } from '../middleware/auth.middleware.js'
 import { requireRole } from '../middleware/role.middleware.js'
 
 const ashaRouter = Router()
 ashaRouter.use(requireAuth, requireRole('ASHA_WORKER'))
+ashaRouter.put('/sync-report', putSyncReport)
 ashaRouter.get('/dashboard', getDashboard)
 ashaRouter.get('/referrals/:referralId/qr', getReferralQr)
 ashaRouter.get('/patients', getPatients)

@@ -247,16 +247,21 @@ export async function updatePatient(patientId, input, ashaWorkerId) {
 }
 
 export async function archivePatient(patientId, input, ashaWorkerId) {
-  const patient = await findOwnedPatient(patientId, ashaWorkerId)
+  const clientOperationId = validateClientOperationId(input?.clientOperationId)
+  const patient = await findOwnedPatient(patientId, ashaWorkerId, { includeArchived: true })
+  if (patient.status === 'ARCHIVED') {
+    if (patient.clientOperationId === clientOperationId) return { patient, duplicate: true }
+    throw new ApiError(409, 'Patient is already archived')
+  }
   if (!Number.isInteger(input?.baseVersion) || input.baseVersion !== patient.version) {
     throw new ApiError(409, 'Patient version changed; reload before archiving')
   }
   patient.status = 'ARCHIVED'
   patient.version += 1
   patient.updatedBy = ashaWorkerId
-  patient.clientOperationId = validateClientOperationId(input.clientOperationId)
+  patient.clientOperationId = clientOperationId
   await patient.save()
-  return patient
+  return { patient, duplicate: false }
 }
 
 export async function sharePatientWithWorker(patientId, input, ashaWorkerId) {

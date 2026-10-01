@@ -16,7 +16,8 @@ function referralToken() {
 }
 
 function tokenHash(token) {
-  return createHash('sha256').update(token).digest('hex')
+  const normalizedToken = `REF-${token.slice(4).toLowerCase()}`
+  return createHash('sha256').update(normalizedToken).digest('hex')
 }
 
 function encryptionKey() {
@@ -178,7 +179,33 @@ export async function getAshaReferralQr(referralId, ashaWorkerId) {
     }
   }
   await recordReferralAudit({ referral, action: 'REFERRAL_VIEWED', actor: ashaWorkerId, actorRole: 'ASHA_WORKER' })
-  return { verificationUrl: `/referral/verify#${token}`, expiresAt: referral.expiresAt }
+  return { verificationUrl: `/doctor#${token}`, expiresAt: referral.expiresAt }
+}
+
+export async function consumeReferralTokenForDoctor(token, doctorId) {
+  if (typeof token !== 'string' || !REFERRAL_TOKEN_PATTERN.test(token)) throw invalidReferral()
+  const referral = await Referral.findOne({ tokenHash: tokenHash(token) })
+  if (!referral) throw invalidReferral()
+  if (await expireOneReferral(referral, doctorId, 'DOCTOR')) throw invalidReferral()
+  if (referral.status !== 'ACTIVE' || referral.expiresAt <= new Date()) throw invalidReferral()
+
+  const patient = await Patient.findOne({ _id: referral.patient, status: 'ACTIVE' }).select('_id')
+  if (!patient) throw invalidReferral()
+
+  const usedReferral = await Referral.findOneAndUpdate(
+    { _id: referral._id, status: 'ACTIVE', expiresAt: { $gt: new Date() } },
+    { $set: { status: 'USED' } },
+    { returnDocument: 'after' },
+  ).select('patient')
+  if (!usedReferral) {
+    await expireOneReferral(referral, doctorId, 'DOCTOR')
+    throw invalidReferral()
+  }
+
+  await recordReferralAudit({ referral: usedReferral, action: 'REFERRAL_ACCESSED', actor: doctorId, actorRole: 'DOCTOR' })
+  await recordReferralAudit({ referral: usedReferral, action: 'REFERRAL_USED', actor: doctorId, actorRole: 'DOCTOR' })
+  await resolveReferralNotifications(usedReferral._id)
+  return usedReferral.patient
 }
 
 export async function verifyReferralToken(token) {
@@ -192,7 +219,7 @@ export async function verifyReferralToken(token) {
   const usedReferral = await Referral.findOneAndUpdate(
     { _id: referral._id, status: 'ACTIVE', expiresAt: { $gt: new Date() } },
     { $set: { status: 'USED' } },
-    { new: true },
+    { returnDocument: 'after' },
   ).select('patient doctor reason priority destination createdAt expiresAt status')
   if (!usedReferral) {
     await expireOneReferral(referral)
@@ -224,7 +251,7 @@ export async function revokeDoctorReferral({ patientId, referralId, doctorId }) 
   const revoked = await Referral.findOneAndUpdate(
     { _id: referral._id, patient: patientId, doctor: doctorId, status: 'ACTIVE', expiresAt: { $gt: new Date() } },
     { $set: { status: 'REVOKED' } },
-    { new: true },
+    { returnDocument: 'after' },
   )
   if (!revoked) throw new ApiError(409, 'Referral status changed. Refresh and try again.')
   await recordReferralAudit({ referral: revoked, action: 'REFERRAL_REVOKED', actor: doctorId, actorRole: 'DOCTOR' })

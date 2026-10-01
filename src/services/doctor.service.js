@@ -7,7 +7,7 @@ import Referral from '../models/Referral.js'
 import ApiError from '../utils/ApiError.js'
 import { listNotifications, notifyFollowUpScheduled } from './notification.service.js'
 import { markMissedFollowUps } from './followUp.service.js'
-import { expireReferralRecords, issueReferral, revokeDoctorReferral } from './referral.service.js'
+import { consumeReferralTokenForDoctor, expireReferralRecords, issueReferral, revokeDoctorReferral } from './referral.service.js'
 
 const CASE_RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 const CONSULTATION_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
@@ -260,6 +260,11 @@ export async function getDoctorCase(patientId, doctorId) {
   }
 }
 
+export async function getDoctorCaseByReferralToken(token, doctorId) {
+  const patientId = await consumeReferralTokenForDoctor(token, doctorId)
+  return getDoctorCase(patientId, doctorId)
+}
+
 async function requireAssignedDoctor(patientId, doctorId) {
   const patient = await findDoctorPatient(patientId)
   if (!patient) throw new ApiError(404, 'Patient case not found')
@@ -274,7 +279,7 @@ export async function takeDoctorCase(patientId, doctorId) {
   let query = Patient.findOneAndUpdate(
     { _id: patientId, status: 'ACTIVE', caseStatus: { $ne: 'CLOSED' }, assignedDoctor: null },
     { $set: { assignedDoctor: doctorId, assignedAt: new Date(), caseStatus: 'ACTIVE' } },
-    { new: true, runValidators: true },
+    { returnDocument: 'after', runValidators: true },
   )
   query = fieldQuery(query, '+assignedDoctor +assignedAt +caseStatus')
   const assigned = await query

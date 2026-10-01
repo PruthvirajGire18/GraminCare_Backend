@@ -120,6 +120,6 @@ export async function revokeSession(token) {
   return User.findOneAndUpdate(
     { _id: payload.sub, ...versionFilter },
     { $inc: { tokenVersion: 1 } },
-    { new: true },
+    { returnDocument: 'after' },
   ).select('_id role')
 }
