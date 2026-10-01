@@ -54,8 +54,11 @@ test('authentication middleware verifies the cookie and loads the current approv
     email: 'doctor@example.test',
     role: 'DOCTOR',
     status: 'APPROVED',
+    tokenVersion: 0,
   })
-  const token = jwt.sign({ sub: 'approved-user-id' }, env.jwtSecret, { expiresIn: '1h' })
+  const token = jwt.sign({ sub: 'approved-user-id', ver: 0 }, env.jwtSecret, {
+    expiresIn: '1h', issuer: 'fieldsync-api', audience: 'fieldsync-web', algorithm: 'HS256',
+  })
   const request = { cookies: { [AUTH_COOKIE_NAME]: token } }
   let receivedError
 
@@ -64,6 +67,34 @@ test('authentication middleware verifies the cookie and loads the current approv
     assert.equal(receivedError, undefined)
     assert.equal(request.user.role, 'DOCTOR')
     assert.equal(request.user.status, 'APPROVED')
+  } finally {
+    User.findById = previousFindById
+    env.jwtSecret = previousSecret
+  }
+})
+
+test('authentication rejects stale, expired, and wrong-algorithm JWTs', async () => {
+  const previousFindById = User.findById
+  const previousSecret = env.jwtSecret
+  env.jwtSecret = 'test-only-signing-key-with-at-least-32-characters'
+  User.findById = async () => ({ status: 'APPROVED', tokenVersion: 3 })
+  const makeToken = (claims, options = {}) => jwt.sign(
+    { sub: 'approved-user-id', ver: 3, ...claims },
+    env.jwtSecret,
+    { expiresIn: '1h', issuer: 'fieldsync-api', audience: 'fieldsync-web', algorithm: 'HS256', ...options },
+  )
+
+  try {
+    for (const token of [
+      makeToken({ ver: 2 }),
+      makeToken({}, { expiresIn: -1 }),
+      makeToken({}, { algorithm: 'HS384' }),
+      jwt.sign({ sub: 'approved-user-id', ver: 3, iss: 'wrong', aud: 'fieldsync-web' }, env.jwtSecret, { algorithm: 'HS256', expiresIn: '1h' }),
+    ]) {
+      let receivedError
+      await requireAuth({ cookies: { [AUTH_COOKIE_NAME]: token } }, {}, (error) => { receivedError = error })
+      assert.equal(receivedError.statusCode, 401)
+    }
   } finally {
     User.findById = previousFindById
     env.jwtSecret = previousSecret

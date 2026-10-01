@@ -3,8 +3,13 @@ export function errorHandler(error, _request, response, _next) {
     return
   }
 
-  if (error.name === 'ValidationError' || error.type === 'entity.parse.failed') {
-    response.status(400).json({ success: false, message: error.type ? 'Invalid JSON request body' : error.message })
+  if (error.type === 'entity.too.large') {
+    response.status(413).json({ success: false, message: 'Request body is too large' })
+    return
+  }
+
+  if (error.name === 'ValidationError' || error.name === 'CastError' || error.type === 'entity.parse.failed') {
+    response.status(400).json({ success: false, message: error.type === 'entity.parse.failed' ? 'Invalid JSON request body' : 'Invalid request data' })
     return
   }
 
@@ -14,7 +19,7 @@ export function errorHandler(error, _request, response, _next) {
     message: statusCode >= 500 ? 'Internal server error' : error.message,
   }
 
-  if (error.code) {
+  if (error.code && statusCode < 500) {
     payload.code = error.code
   }
 

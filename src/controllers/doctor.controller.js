@@ -9,6 +9,7 @@ import {
   revokeDoctorPatientReferral,
   takeDoctorCase,
 } from '../services/doctor.service.js'
+import { writeSecurityAuditEvent } from '../services/securityAudit.service.js'
 
 function doctorId(request) {
   return request.user._id.toString()
@@ -36,16 +37,21 @@ export async function getCase(request, response) {
 
 export async function takeCase(request, response) {
   const result = await takeDoctorCase(request.params.patientId, doctorId(request))
+  if (!result.alreadyAssigned) {
+    await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'CASE_ASSIGNED', resourceType: 'CASE', resourceId: request.params.patientId })
+  }
   response.status(200).json({ success: true, ...result })
 }
 
 export async function postConsultation(request, response) {
   const consultation = await createDoctorConsultation(request.params.patientId, doctorId(request), request.body)
+  await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'CONSULTATION_CREATED', resourceType: 'CONSULTATION', resourceId: consultation._id })
   response.status(201).json({ success: true, consultation })
 }
 
 export async function postPrescription(request, response) {
   const prescription = await createDoctorPrescription(request.params.patientId, doctorId(request), request.body)
+  await writeSecurityAuditEvent({ actor: request.user._id, actorRole: request.user.role, action: 'PRESCRIPTION_CREATED', resourceType: 'PRESCRIPTION', resourceId: prescription._id })
   response.status(201).json({ success: true, prescription })
 }
 

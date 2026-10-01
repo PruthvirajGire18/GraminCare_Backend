@@ -199,7 +199,7 @@ export async function verifyReferralToken(token) {
     throw invalidReferral()
   }
 
-  await recordReferralAudit({ referral: usedReferral, action: 'REFERRAL_VIEWED' })
+  await recordReferralAudit({ referral: usedReferral, action: 'REFERRAL_ACCESSED' })
   await recordReferralAudit({ referral: usedReferral, action: 'REFERRAL_USED' })
   await resolveReferralNotifications(usedReferral._id)
 

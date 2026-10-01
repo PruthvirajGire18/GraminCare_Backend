@@ -282,7 +282,7 @@ export async function applyVersionedChanges({
         await record.save()
       } catch (error) {
         if (error.name === 'VersionError' && attempt < 3) continue
-        if (error.name === 'ValidationError') throw new ApiError(400, error.message)
+        if (error.name === 'ValidationError') throw new ApiError(400, 'Invalid request data')
         throw error
       }
     }
@@ -330,7 +330,7 @@ export async function applyVersionedChanges({
         await record.save()
       } catch (error) {
         if (error.name === 'VersionError' && attempt < 3) continue
-        if (error.name === 'ValidationError') throw new ApiError(400, error.message)
+        if (error.name === 'ValidationError') throw new ApiError(400, 'Invalid request data')
         throw error
       }
     }
@@ -391,7 +391,7 @@ export async function resolveConflict(conflictId, input, resolverId) {
       await record.save()
     } catch (error) {
       if (error.name === 'VersionError') throw new ApiError(409, 'The record changed while resolving; reload the conflict')
-      if (error.name === 'ValidationError') throw new ApiError(400, error.message)
+      if (error.name === 'ValidationError') throw new ApiError(400, 'Invalid request data')
       throw error
     }
   }

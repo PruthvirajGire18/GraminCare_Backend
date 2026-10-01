@@ -61,7 +61,12 @@ test('approved login returns a JWT for the HttpOnly cookie and no password hash'
 
   try {
     const result = await loginUser({ email: 'doctor@example.test', password: TEST_PASSWORD })
-    assert.equal(jwt.verify(result.token, TEST_JWT_SECRET).sub, USER_ID)
+    const tokenPayload = jwt.verify(result.token, TEST_JWT_SECRET, {
+      algorithms: ['HS256'], issuer: 'fieldsync-api', audience: 'fieldsync-web',
+    })
+    assert.equal(tokenPayload.sub, USER_ID)
+    assert.equal(tokenPayload.ver, 0)
+    assert.ok(tokenPayload.exp - tokenPayload.iat <= 8 * 60 * 60)
     assert.equal(result.user.role, 'DOCTOR')
     assert.equal(Object.hasOwn(result.user, 'passwordHash'), false)
   } finally {

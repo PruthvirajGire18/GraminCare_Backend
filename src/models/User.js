@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, required: true, enum: USER_ROLES },
     status: { type: String, required: true, enum: USER_STATUSES, default: 'PENDING' },
+    tokenVersion: { type: Number, required: true, default: 0, min: 0 },
   },
   { timestamps: true },
 )

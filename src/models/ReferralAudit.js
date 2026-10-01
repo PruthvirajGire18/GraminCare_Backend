@@ -8,7 +8,7 @@ const referralAuditSchema = new mongoose.Schema(
     actorRole: { type: String, enum: ['ADMIN', 'ASHA_WORKER', 'DOCTOR'], default: null },
     action: {
       type: String,
-      enum: ['REFERRAL_CREATED', 'REFERRAL_VIEWED', 'REFERRAL_USED', 'REFERRAL_EXPIRED', 'REFERRAL_REVOKED'],
+      enum: ['REFERRAL_CREATED', 'REFERRAL_VIEWED', 'REFERRAL_ACCESSED', 'REFERRAL_USED', 'REFERRAL_EXPIRED', 'REFERRAL_REVOKED'],
       required: true,
       index: true,
     },

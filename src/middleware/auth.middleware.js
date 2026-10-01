@@ -12,13 +12,23 @@ export async function requireAuth(request, _response, next) {
   }
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret)
+    const payload = jwt.verify(token, env.jwtSecret, {
+      algorithms: ['HS256'],
+      issuer: 'fieldsync-api',
+      audience: 'fieldsync-web',
+    })
+    if (typeof payload.sub !== 'string' || !Number.isInteger(payload.ver) || payload.ver < 0) {
+      throw new ApiError(401, 'Session is invalid or expired', 'INVALID_SESSION')
+    }
     const user = await User.findById(payload.sub)
     if (!user) {
       throw new ApiError(401, 'Session is no longer valid', 'INVALID_SESSION')
     }
     if (user.status !== 'APPROVED') {
       throw new ApiError(403, 'Account is not approved or active', 'ACCOUNT_NOT_APPROVED')
+    }
+    if (Number(user.tokenVersion || 0) !== payload.ver) {
+      throw new ApiError(401, 'Session is no longer valid', 'INVALID_SESSION')
     }
     request.user = user
     next()

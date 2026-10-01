@@ -153,7 +153,7 @@ test('a valid QR token returns only referral details and is atomically used once
     assert.equal(Object.hasOwn(result, 'phone'), false)
     assert.equal(mocks.record.status, 'USED')
     assert.equal(mocks.findOneAndUpdateCalls, 2, 'both scans contend on an atomic ACTIVE-only update')
-    assert.deepEqual(mocks.audits.map(({ action }) => action), ['REFERRAL_VIEWED', 'REFERRAL_USED'])
+    assert.deepEqual(mocks.audits.map(({ action }) => action), ['REFERRAL_ACCESSED', 'REFERRAL_USED'])
     assert.equal(Object.hasOwn(mocks.audits[0], 'reason'), false)
     await assert.rejects(verifyReferralToken(token), /Referral invalid or expired/)
   } finally {

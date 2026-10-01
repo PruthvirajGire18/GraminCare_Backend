@@ -33,6 +33,7 @@ export async function decideRegistration(userId, status) {
   }
 
   user.status = status
+  user.tokenVersion = (user.tokenVersion || 0) + 1
   await user.save()
   return toUserDto(user)
 }
@@ -46,6 +47,7 @@ export async function updateUserStatus(userId, status, actingAdminId) {
   }
 
   const user = await findManagedUser(userId)
+  if (user.status !== status) user.tokenVersion = (user.tokenVersion || 0) + 1
   user.status = status
   await user.save()
   return toUserDto(user)

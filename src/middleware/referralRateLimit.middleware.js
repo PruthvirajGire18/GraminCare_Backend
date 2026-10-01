@@ -22,6 +22,7 @@ export function createReferralRateLimiter({ windowMs = 15 * 60 * 1000, maxReques
       for (const [key, value] of attemptsByIp) {
         if (currentTime - value.startedAt >= windowMs) attemptsByIp.delete(key)
       }
+      while (attemptsByIp.size > 10000) attemptsByIp.delete(attemptsByIp.keys().next().value)
     }
     return next()
   }

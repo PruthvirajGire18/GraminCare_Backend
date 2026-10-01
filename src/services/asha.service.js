@@ -195,7 +195,7 @@ export async function createPatient(input, ashaWorkerId) {
 }
 
 export async function listPatients(ashaWorkerId, { q = '', page = 1, limit = 20 } = {}) {
-  const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1)
+  const pageNumber = Math.min(1_000_000, Math.max(1, Number.parseInt(page, 10) || 1))
   const pageSize = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 20))
   const filter = { $or: [{ createdBy: ashaWorkerId }, { ashaWorkers: ashaWorkerId }], status: 'ACTIVE' }
   const query = typeof q === 'string' ? q.trim().slice(0, 80) : ''

@@ -10,6 +10,7 @@ import Patient from './models/Patient.js'
 import Prescription from './models/Prescription.js'
 import Referral from './models/Referral.js'
 import ReferralAudit from './models/ReferralAudit.js'
+import SecurityAuditEvent from './models/SecurityAuditEvent.js'
 import { migrateLegacyClinicalRecords } from './services/dataMigration.service.js'
 import { removeReferralExpiryTtlIndexes } from './services/referralIndex.service.js'
 import { startRiskAssessmentWorker } from './services/aiRiskQueue.service.js'
@@ -38,6 +39,7 @@ async function startServer() {
       ['Notification', Notification],
       ['Prescription', Prescription],
       ['ReferralAudit', ReferralAudit],
+      ['SecurityAuditEvent', SecurityAuditEvent],
     ]
     for (const [modelName, model] of models) {
       startupStage = `index initialization for ${modelName}`
@@ -57,7 +59,6 @@ async function startServer() {
 startServer().catch((error) => {
   const stage = error.startupStage || 'startup'
   const code = error.code ? ` (${error.code})` : ''
-  const message = error.message ? `: ${error.message}` : ''
-  console.error(`Server startup failed during ${stage}: ${error.name}${code}${message}`)
+  console.error(`Server startup failed during ${stage}: ${error.name}${code}`)
   process.exitCode = 1
 })
